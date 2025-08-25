@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker:24.0.5-dind' // Docker-in-Docker image with docker installed
-            args '-v /var/run/docker.sock:/var/run/docker.sock' // to run docker commands
-        }
-    }
+    agent any  // Use a standard Jenkins agent
 
     environment {
         DOCKER_IMAGE = 'job-portal-dev'
@@ -23,9 +18,9 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    // Use Node.js container to run npm commands
+                    // Install Node.js & npm if not already installed
                     sh '''
-                        apk add --no-cache nodejs npm
+                        apk add --no-cache nodejs npm || true
                         if [ -f package.json ]; then
                             npm install
                         fi
@@ -49,9 +44,9 @@ pipeline {
         stage('Code Quality Check') {
             steps {
                 script {
-                    // Install PHP if not already present
+                    // Install PHP CLI if not already present
                     sh '''
-                        apk add --no-cache php-cli
+                        apk add --no-cache php-cli || true
                         # PHP lint check
                         find . -name "*.php" -exec php -l {} \\;
                         
@@ -77,21 +72,27 @@ pipeline {
 
         stage('Test Application') {
             steps {
-                sh 'docker-compose up -d db'
-                sh 'sleep 30'
-                sh 'docker-compose up -d app'
-                sh 'sleep 10'
+                script {
+                    sh '''
+                        # Install docker-compose if needed
+                        apk add --no-cache py3-pip || true
+                        pip3 install docker-compose || true
 
-                sh '''
-                    if curl -f http://localhost:8080/; then
-                        echo "Application is running successfully"
-                    else
-                        echo "Application failed to start"
-                        exit 1
-                    fi
-                '''
+                        docker-compose up -d db
+                        sleep 30
+                        docker-compose up -d app
+                        sleep 10
 
-                sh 'docker-compose down'
+                        if curl -f http://localhost:8080/; then
+                            echo "Application is running successfully"
+                        else
+                            echo "Application failed to start"
+                            exit 1
+                        fi
+
+                        docker-compose down
+                    '''
+                }
             }
         }
 
