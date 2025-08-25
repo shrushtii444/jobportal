@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # PHP Application
+  app:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      # Mount source code for development (excluding uploads)
+      - type: bind
+        source: .
+        target: /var/www/html
+        consistency: cached
+      - type: bind
+        source: ./docker/apache.conf
+        target: /etc/apache2/sites-available/000-default.conf
+        read_only: true
+      # Mount uploads directory with proper permissions
+      - type: bind
+        source: ./uploads
+        target: /var/www/html/uploads
+        consistency: cached
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_NAME=job_board
+      - DB_USER=jobportal
+      - DB_PASSWORD=jobportal123
+    networks:
+      - job-portal-network
+
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: job_board
+      MYSQL_USER: jobportal
+      MYSQL_PASSWORD: jobportal123
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - type: bind
+        source: ./db/db.sql
+        target: /docker-entrypoint-initdb.d/db.sql
+        read_only: true
+    networks:
+      - job-portal-network
+    command: --default-authentication-plugin=mysql_native_password
+
+  # phpMyAdmin for easy database management
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: jobportal
+      PMA_PASSWORD: jobportal123
+      PMA_ARBITRARY: 1
+    depends_on:
+      - db
+    networks:
+      - job-portal-network
+
+volumes:
+  mysql_data:
+
+networks:
+  job-portal-network:
+    driver: bridge
