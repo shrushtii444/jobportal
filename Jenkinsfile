@@ -38,8 +38,8 @@ pipeline {
         stage('Code Quality Check') {
             steps {
                 script {
-                    // Check for PHP syntax errors
-                    sh 'find . -name "*.php" -exec php -l {} \;'
+                    // Check for PHP syntax errors - FIXED: escaped backslash
+                    sh 'find . -name "*.php" -exec php -l {} \\;'
                     
                     // Check for common security issues
                     sh '''
@@ -67,13 +67,11 @@ pipeline {
         stage('Test Application') {
             steps {
                 script {
-                    // Start the application with docker-compose for testing
                     sh 'docker-compose up -d db'
-                    sh 'sleep 30' // Wait for database to be ready
+                    sh 'sleep 30'
                     sh 'docker-compose up -d app'
-                    sh 'sleep 10' // Wait for application to start
+                    sh 'sleep 10'
                     
-                    // Basic health check
                     sh '''
                         if curl -f http://localhost:8080/; then
                             echo "Application is running successfully"
@@ -83,7 +81,6 @@ pipeline {
                         fi
                     '''
                     
-                    // Cleanup test containers
                     sh 'docker-compose down'
                 }
             }
@@ -95,7 +92,6 @@ pipeline {
             }
             steps {
                 script {
-                    // Tag image for Docker Hub
                     sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_HUB_REPO}:${DOCKER_TAG}"
                     sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_HUB_REPO}:${DOCKER_HUB_TAG}"
                     
@@ -111,14 +107,10 @@ pipeline {
             }
             steps {
                 script {
-                    // Login to Docker Hub using credentials from Jenkins
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                        
-                        // Push images to Docker Hub
                         sh "docker push ${DOCKER_HUB_REPO}:${DOCKER_TAG}"
                         sh "docker push ${DOCKER_HUB_REPO}:${DOCKER_HUB_TAG}"
-                        
                         echo "Successfully pushed images to Docker Hub"
                     }
                 }
@@ -131,12 +123,7 @@ pipeline {
             }
             steps {
                 script {
-                    echo "Deployment stage - you can add deployment logic here"
-                    echo "Example: Deploy to staging/production servers using the pushed image"
-                    
-                    // Example deployment commands (uncomment and modify as needed)
-                    // sh "docker pull ${DOCKER_HUB_REPO}:${DOCKER_HUB_TAG}"
-                    // sh "docker-compose -f docker-compose.prod.yml up -d"
+                    echo "Deployment stage - add deployment logic here"
                 }
             }
         }
@@ -144,11 +131,8 @@ pipeline {
     
     post {
         always {
-            // Cleanup
             sh 'docker-compose down'
             sh 'docker system prune -f'
-            
-            // Logout from Docker Hub
             sh 'docker logout'
         }
         success {
